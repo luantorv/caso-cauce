@@ -6,6 +6,14 @@ Verificá tu trabajo con:  python -m pytest -q tests/test_limpieza.py
 import re
 import unicodedata
 
+_URL_RE = re.compile(r"(?:https?://\S+|www\.\S+)")
+_EMAIL_RE = re.compile(r"\S+@\S+\.\S+")
+_NUM_CORE = r"\d+(?:[.,]\d+)*"
+_MONTO_RE = re.compile(r"(?:\$|\bgs\.?|\busd)\s*" + _NUM_CORE)
+_NUM_RE = re.compile(_NUM_CORE)
+_NO_PERMITIDO_RE = re.compile(r"[^a-z_\s]")
+_ESPACIOS_RE = re.compile(r"\s+")
+
 
 def quitar_tildes(texto: str) -> str:
     """Devuelve el texto sin tildes ni diéresis: á→a, é→e, ü→u, ñ→n (también en mayúsculas).
@@ -13,7 +21,8 @@ def quitar_tildes(texto: str) -> str:
     Pista: unicodedata.normalize("NFKD", ...) separa cada letra de su tilde, y
     unicodedata.combining(c) indica si un carácter es una tilde "suelta".
     """
-    raise NotImplementedError("Completar quitar_tildes")
+    nfkd = unicodedata.normalize("NFKD", texto)
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
 
 
 def limpiar_texto(texto) -> str:
@@ -35,4 +44,12 @@ def limpiar_texto(texto) -> str:
         limpiar_texto("¡Me cobraron $ 15.000 y NO los reconozco!")  -> "me cobraron _monto_ y no los reconozco"
         limpiar_texto("mi DNI es 30.123.456 😡")                     -> "mi dni es _num_"
     """
-    raise NotImplementedError("Completar limpiar_texto")
+    if not isinstance(texto, str):
+        return ""
+    texto = quitar_tildes(texto.lower())
+    texto = _URL_RE.sub(" _url_ ", texto)
+    texto = _EMAIL_RE.sub(" _email_ ", texto)
+    texto = _MONTO_RE.sub(" _monto_ ", texto)
+    texto = _NUM_RE.sub(" _num_ ", texto)
+    texto = _NO_PERMITIDO_RE.sub(" ", texto)
+    return _ESPACIOS_RE.sub(" ", texto).strip()

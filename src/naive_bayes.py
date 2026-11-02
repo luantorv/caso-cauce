@@ -23,7 +23,10 @@ def log_suma_exp(a, axis=1):
 
     Ejemplo: log_suma_exp(np.array([[-1000.0, -1000.0]])) -> array([-999.3069...])
     """
-    raise NotImplementedError("Completar log_suma_exp")
+    a = np.asarray(a, dtype=float)
+    m = np.max(a, axis=axis, keepdims=True)
+    resultado = m + np.log(np.sum(np.exp(a - m), axis=axis, keepdims=True))
+    return np.squeeze(resultado, axis=axis)
 
 
 class NaiveBayesMultinomial(ClassifierMixin, BaseEstimator):
@@ -53,26 +56,41 @@ class NaiveBayesMultinomial(ClassifierMixin, BaseEstimator):
 
     def fit(self, X, y):
         """Estima las probabilidades a partir de la matriz de conteos X y las etiquetas y. Devuelve self."""
-        raise NotImplementedError("Completar fit")
+        y = np.asarray(y)
+        self.classes_ = np.unique(y)
+        n_clases = len(self.classes_)
+        n_terminos = X.shape[1]
+
+        self.class_count_ = np.array([(y == c).sum() for c in self.classes_], dtype=float)
+        self.feature_count_ = np.zeros((n_clases, n_terminos))
+        for i, c in enumerate(self.classes_):
+            self.feature_count_[i] = np.asarray(X[y == c].sum(axis=0)).ravel()
+
+        self.class_log_prior_ = np.log(self.class_count_ / self.class_count_.sum())
+        suavizado = self.feature_count_ + self.alpha
+        self.feature_log_prob_ = np.log(suavizado / suavizado.sum(axis=1, keepdims=True))
+        return self
 
     def _log_verosimilitud_conjunta(self, X):
         """Devuelve log P(c) + sum_t x_t · log P(t | c) para cada documento y clase.
 
         Forma del resultado: (n_documentos, n_clases). Se resuelve con un solo producto matricial.
         """
-        raise NotImplementedError("Completar _log_verosimilitud_conjunta")
+        return self.class_log_prior_ + np.asarray(X @ self.feature_log_prob_.T)
 
     def predict_log_proba(self, X):
         """log P(c | documento): la log-verosimilitud conjunta normalizada con log_suma_exp."""
-        raise NotImplementedError("Completar predict_log_proba")
+        log_verosimilitud = self._log_verosimilitud_conjunta(X)
+        normalizador = log_suma_exp(log_verosimilitud, axis=1).reshape(-1, 1)
+        return log_verosimilitud - normalizador
 
     def predict_proba(self, X):
         """P(c | documento). Cada fila suma 1. Las columnas siguen el orden de classes_."""
-        raise NotImplementedError("Completar predict_proba")
+        return np.exp(self.predict_log_proba(X))
 
     def predict(self, X):
         """La clase con mayor probabilidad a posteriori para cada documento."""
-        raise NotImplementedError("Completar predict")
+        return self.classes_[np.argmax(self.predict_proba(X), axis=1)]
 
 
 def terminos_mas_indicativos(modelo, vocabulario, n=10):
@@ -85,4 +103,12 @@ def terminos_mas_indicativos(modelo, vocabulario, n=10):
     `vocabulario` es la lista de términos en el orden de las columnas de X
     (por ejemplo, CountVectorizer.get_feature_names_out()).
     """
-    raise NotImplementedError("Completar terminos_mas_indicativos")
+    vocabulario = np.asarray(vocabulario)
+    flp = modelo.feature_log_prob_
+    resultado = {}
+    for i, clase in enumerate(modelo.classes_):
+        promedio_otras = np.delete(flp, i, axis=0).mean(axis=0)
+        puntaje = flp[i] - promedio_otras
+        orden = np.argsort(puntaje)[::-1][:n]
+        resultado[clase] = list(vocabulario[orden])
+    return resultado

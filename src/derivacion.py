@@ -20,7 +20,20 @@ def derivar(proba, clases, umbral_fraude, umbral_confianza):
 
     Devuelve un array de n_mensajes strings.
     """
-    raise NotImplementedError("Completar derivar")
+    proba = np.asarray(proba)
+    clases_lista = list(clases)
+    clases_arr = np.asarray(clases_lista)
+    idx_fraude = clases_lista.index("fraude")
+
+    idx_max = np.argmax(proba, axis=1)
+    prob_max = proba[np.arange(len(proba)), idx_max]
+    prob_fraude = proba[:, idx_fraude]
+
+    destino = np.full(len(proba), REVISION, dtype=object)
+    confiable = prob_max >= umbral_confianza
+    destino[confiable] = clases_arr[idx_max[confiable]]
+    destino[prob_fraude >= umbral_fraude] = "fraude"
+    return destino
 
 
 def evaluar_derivacion(y_real, destino):
@@ -33,4 +46,19 @@ def evaluar_derivacion(y_real, destino):
 
     Los tres valores son proporciones entre 0 y 1 (float).
     """
-    raise NotImplementedError("Completar evaluar_derivacion")
+    y_real = np.asarray(y_real)
+    destino = np.asarray(destino)
+
+    automatico = destino != REVISION
+    cobertura = automatico.mean()
+    exactitud_automatica = (destino[automatico] == y_real[automatico]).mean()
+
+    es_fraude_real = y_real == "fraude"
+    perdido = automatico & (destino != "fraude")
+    fraude_perdido = perdido[es_fraude_real].mean()
+
+    return {
+        "cobertura": float(cobertura),
+        "exactitud_automatica": float(exactitud_automatica),
+        "fraude_perdido": float(fraude_perdido),
+    }
